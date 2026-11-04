@@ -1,0 +1,258 @@
+openapi: 3.0.3
+info:
+  title: AS2026 E-commerce Checkout API
+  description: >
+    REST API with Register, Login, Cart, and Checkout. Paying with cash applies
+    a 10% discount. Paying with a credit card applies no discount.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+tags:
+  - name: Auth
+  - name: Cart
+  - name: Checkout
+  - name: Docs
+paths:
+  /register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              name: Dana Lee
+              email: dana@shop.test
+              password: Password123!
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid payload
+        '409':
+          description: Email already registered
+  /login:
+    post:
+      tags: [Auth]
+      summary: Log in and receive a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: alice@shop.test
+              password: Password123!
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Missing credentials
+        '401':
+          description: Invalid credentials
+  /cart:
+    post:
+      tags: [Cart]
+      summary: Replace the authenticated user's cart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartRequest'
+            example:
+              items:
+                - productId: 1
+                  quantity: 1
+                - productId: 2
+                  quantity: 2
+      responses:
+        '200':
+          description: Current cart with line totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '400':
+          description: Invalid items
+        '401':
+          description: Missing or invalid token
+        '404':
+          description: Product not found
+  /checkout:
+    post:
+      tags: [Checkout]
+      summary: Complete checkout for the current cart
+      description: >
+        Cash payments receive a 10% discount. Credit card payments receive no discount.
+        The cart is emptied after a successful checkout.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+            examples:
+              cash:
+                value:
+                  paymentMethod: cash
+              creditCard:
+                value:
+                  paymentMethod: credit_card
+      responses:
+        '200':
+          description: Order completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+        '400':
+          description: Empty cart or invalid payment method
+        '401':
+          description: Missing or invalid token
+  /swagger.yaml:
+    get:
+      tags: [Docs]
+      summary: Download the OpenAPI YAML specification
+      responses:
+        '200':
+          description: OpenAPI document
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /docs:
+    get:
+      tags: [Docs]
+      summary: Render the OpenAPI specification in Swagger UI
+      responses:
+        '200':
+          description: HTML documentation page
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        token:
+          type: string
+    CartItemInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+    CartRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItemInput'
+    CartLine:
+      type: object
+      properties:
+        productId:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+        lineTotal:
+          type: number
+    CartResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartLine'
+        subtotal:
+          type: number
+    CheckoutRequest:
+      type: object
+      required: [paymentMethod]
+      properties:
+        paymentMethod:
+          type: string
+          enum: [cash, credit_card]
+    CheckoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        order:
+          type: object
+          properties:
+            userId:
+              type: integer
+            email:
+              type: string
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartLine'
+            subtotal:
+              type: number
+            paymentMethod:
+              type: string
+            discountRate:
+              type: number
+            discount:
+              type: number
+            total:
+              type: number
